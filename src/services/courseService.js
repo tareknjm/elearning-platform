@@ -15,18 +15,27 @@ export const searchCourses = async (keyword) => {
   return response.data;
 };
 
-export const createCourse = async (data) => {
-  const response = await api.post('/instructor/courses', data);
+export const createCourse = async (data, imageFile) => {
+  const formData = new FormData();
+  formData.append('title', data.title);
+  if (data.description) formData.append('description', data.description);
+  if (data.level) formData.append('level', data.level);
+  if (data.categoryId) formData.append('categoryId', data.categoryId);
+  formData.append('image', imageFile);
+
+  const response = await api.post('/instructor/courses', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
   return response.data;
 };
 
-export const getMyCourses = async () => {
-  const response = await api.get('/instructor/courses');
+export const getMyCourses = async (archived = false) => {
+  const response = await api.get(`/instructor/courses?archived=${archived}`);
   return response.data;
 };
 
-export const getAllCourses = async () => {
-  const response = await api.get('/admin/courses');
+export const getAllCourses = async (archived = false) => {
+  const response = await api.get(`/admin/courses?archived=${archived}`);
   return response.data;
 };
 
@@ -37,6 +46,16 @@ export const approveCourse = async (id) => {
 
 export const rejectCourse = async (id) => {
   const response = await api.put(`/admin/courses/${id}/reject`);
+  return response.data;
+};
+
+export const archiveCourse = async (id) => {
+  const response = await api.put(`/courses/${id}/archive`);
+  return response.data;
+};
+
+export const restoreCourse = async (id) => {
+  const response = await api.put(`/courses/${id}/restore`);
   return response.data;
 };
 

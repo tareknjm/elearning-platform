@@ -182,3 +182,36 @@
     border-right-color: var(--border);
   }
 }
+html, body {
+  margin: 0;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+#root {
+  overflow-x: hidden;
+}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+/* Scrollbar custom harmonisée avec le thème */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.3);
+  border-radius: 99px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.6);
+}
+
+/* Firefox */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
+}

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import Layout from '../../components/Layout';
 import LearnerLayout from '../../components/layouts/LearnerLayout';
 import InstructorLayout from '../../components/layouts/InstructorLayout';
@@ -9,55 +10,37 @@ import { sendMessage } from '../../services/chatService';
 
 const ChatbotPage = () => {
   const { user } = useAuth();
+  const { dark } = useTheme();
   const navigate = useNavigate();
 
-  const isLearner = user?.role === 'LEARNER';
+  const isLearner    = user?.role === 'LEARNER';
   const isInstructor = user?.role === 'INSTRUCTOR';
-  const isDark = isLearner || isInstructor;
+  const Wrapper = isLearner ? LearnerLayout : isInstructor ? InstructorLayout : Layout;
+  const baseAccent = isInstructor ? '#10b981' : '#8b5cf6';
 
-  const Wrapper = isLearner
-    ? LearnerLayout
-    : isInstructor
-    ? InstructorLayout
-    : Layout;
-
-  const theme = isInstructor ? {
-    accent: '16,185,129',
-    accentHex: '#10b981',
-    accentLight: '#6ee7b7',
-    accentBg: 'rgba(16,185,129,0.1)',
-    accentBorder: 'rgba(16,185,129,0.2)',
-    cardBg: '#0d1a14',
-    cardBorder: 'rgba(16,185,129,0.15)',
-    msgBg: 'rgba(16,185,129,0.08)',
-    msgBorder: 'rgba(16,185,129,0.15)',
-    aiBg: 'linear-gradient(135deg, #10b981, #059669)',
-    userBg: 'linear-gradient(135deg, #10b981, #059669)',
-    suggBg: 'rgba(16,185,129,0.1)',
-    suggBorder: 'rgba(16,185,129,0.2)',
-    suggColor: '#6ee7b7',
-  } : {
-    accent: '139,92,246',
-    accentHex: '#8b5cf6',
-    accentLight: '#c4b5fd',
-    accentBg: 'rgba(139,92,246,0.1)',
-    accentBorder: 'rgba(139,92,246,0.2)',
-    cardBg: 'rgba(255,255,255,0.04)',
-    cardBorder: 'rgba(139,92,246,0.15)',
-    msgBg: 'rgba(139,92,246,0.08)',
-    msgBorder: 'rgba(139,92,246,0.15)',
-    aiBg: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
-    userBg: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
-    suggBg: 'rgba(139,92,246,0.1)',
-    suggBorder: 'rgba(139,92,246,0.2)',
-    suggColor: '#c4b5fd',
+  const t = {
+    textPrimary:     dark ? '#ffffff'                : '#111827',
+    textSub:         dark ? 'rgba(255,255,255,0.5)'  : '#6b7280',
+    surface:         dark ? 'rgba(255,255,255,0.04)' : '#ffffff',
+    surfaceSub:      dark ? 'rgba(255,255,255,0.02)' : '#f4f4f5',
+    border:          dark ? 'rgba(255,255,255,0.08)' : '#ebebeb',
+    shadow:          dark ? 'none'                   : '0 1px 12px rgba(0,0,0,0.05)',
+    accent:          baseAccent,
+    accentBg:        dark ? `${baseAccent}20`        : `${baseAccent}10`,
+    accentBorder:    dark ? `${baseAccent}35`        : `${baseAccent}22`,
+    accentText:      dark
+      ? (isInstructor ? '#6ee7b7' : '#c4b5fd')
+      : (isInstructor ? '#059669' : '#7c3aed'),
+    msgAreaBg:       dark ? 'rgba(0,0,0,0.15)'       : '#f8f9fa',
+    botBubbleBg:     dark ? `${baseAccent}14`        : '#ffffff',
+    botBubbleBorder: dark ? `${baseAccent}25`        : '#ebebeb',
+    botBubbleText:   dark ? 'rgba(255,255,255,0.88)' : '#374151',
   };
 
   const [messages, setMessages] = useState([{
-    id: 1,
-    type: 'bot',
-    text: "Bonjour ! 👋 Je suis votre assistant E-Learning. Dites-moi ce que vous souhaitez apprendre et je vous recommanderai les meilleures formations !",
-    recommendations: []
+    id: 1, type: 'bot',
+    text: "Bonjour ! Je suis votre assistant E-Learning. Dites-moi ce que vous souhaitez apprendre et je vous recommanderai les meilleures formations !",
+    recommendations: [],
   }]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -72,31 +55,22 @@ const ChatbotPage = () => {
     if (!input.trim() || loading) return;
     const userMessage = input.trim();
     setInput('');
-    setMessages(prev => [...prev, {
-      id: Date.now(),
-      type: 'user',
-      text: userMessage,
-      recommendations: []
-    }]);
+    setMessages(prev => [...prev, { id: Date.now(), type: 'user', text: userMessage, recommendations: [] }]);
     setLoading(true);
     try {
       const data = await sendMessage(userMessage);
       setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        type: 'bot',
+        id: Date.now() + 1, type: 'bot',
         text: data.reply,
-        recommendations: data.recommendations || []
+        recommendations: data.recommendations || [],
       }]);
     } catch {
       setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        type: 'bot',
+        id: Date.now() + 1, type: 'bot',
         text: "Désolé, une erreur s'est produite. Veuillez réessayer.",
-        recommendations: []
+        recommendations: [],
       }]);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const suggestions = [
@@ -107,125 +81,127 @@ const ChatbotPage = () => {
     'Applications mobiles',
   ];
 
-  const chatContainerStyle = isDark ? {
-    background: theme.cardBg,
-    border: `1px solid ${theme.cardBorder}`,
-    borderRadius: '24px',
-  } : {
-    background: 'white',
-    border: '1px solid #f0f0f0',
-    borderRadius: '24px',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
-  };
-
-  const msgAreaStyle = isDark ? {
-    background: 'rgba(0,0,0,0.15)',
-    borderRadius: '24px 24px 0 0',
-  } : {
-    background: '#f9fafb',
-    borderRadius: '24px 24px 0 0',
-  };
-
-  const botBubbleStyle = isDark ? {
-    background: theme.msgBg,
-    border: `1px solid ${theme.msgBorder}`,
-    color: 'rgba(255,255,255,0.9)',
-    borderRadius: '20px 20px 20px 4px',
-  } : {
-    background: 'white',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-    color: '#374151',
-    borderRadius: '20px 20px 20px 4px',
-  };
-
   return (
     <Wrapper>
-      <div className="max-w-4xl mx-auto">
+      {/* Conteneur pleine hauteur — pas de scroll de page */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: 'calc(100vh - 80px)', // 80px = hauteur navbar
+        maxWidth: 800,
+        margin: '0 auto',
+        width: '100%',
+      }}>
 
-        {/* Header */}
-        <div className="mb-6 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-3 text-sm font-semibold"
-            style={{
-              background: theme.accentBg,
-              border: `1px solid ${theme.accentBorder}`,
-              color: theme.accentLight,
-            }}>
+        {/* ── Header compact ── */}
+        <motion.div
+          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          style={{ textAlign: 'center', paddingBottom: 16, flexShrink: 0 }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '6px 14px', borderRadius: 99, marginBottom: 8,
+            background: t.accentBg, border: `1px solid ${t.accentBorder}`,
+            color: t.accentText, fontSize: 12, fontWeight: 600,
+          }}>
             <motion.span
               animate={{ scale: [1, 1.3, 1] }}
               transition={{ repeat: Infinity, duration: 2 }}
-              className="w-2 h-2 rounded-full"
-              style={{ background: theme.accentHex }} />
+              style={{ width: 6, height: 6, borderRadius: '50%', background: t.accent, display: 'inline-block' }} />
             Assistant IA actif
-          </motion.div>
-          <h1 className={`text-2xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Assistant E-Learning 🤖
+          </div>
+          <h1 style={{ fontSize: 18, fontWeight: 800, color: t.textPrimary, margin: '0 0 4px' }}>
+            Assistant E-Learning
           </h1>
-          <p className="text-sm" style={{ color: isDark ? 'rgba(255,255,255,0.4)' : '#9ca3af' }}>
+          <p style={{ fontSize: 13, color: t.textSub, margin: 0 }}>
             Posez vos questions et je vous recommande les meilleures formations
           </p>
-        </div>
+        </motion.div>
 
-        {/* Chat container */}
-        <div style={chatContainerStyle}>
+        {/* ── Boîte chat — prend tout l'espace restant ── */}
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          borderRadius: 20,
+          overflow: 'hidden',
+          background: t.surface,
+          border: `1px solid ${t.border}`,
+          boxShadow: t.shadow,
+          minHeight: 0, // crucial pour que flex fonctionne
+        }}>
 
-          {/* Zone messages */}
-          <div className="h-96 overflow-y-auto p-6 space-y-4" style={msgAreaStyle}>
+          {/* Zone messages — scroll uniquement ici */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            background: t.msgAreaBg,
+            scrollbarWidth: 'thin',
+            scrollbarColor: `${t.accent}40 transparent`,
+          }}>
             <AnimatePresence>
               {messages.map(msg => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 10 }}
+                <motion.div key={msg.id}
+                  initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}>
+                  transition={{ duration: 0.25 }}>
 
-                  <div className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div style={{ display: 'flex', justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start' }}>
                     {msg.type === 'bot' && (
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center mr-3 flex-shrink-0 mt-1 text-white text-xs font-bold"
-                        style={{ background: theme.aiBg }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: '50%',
+                        background: t.accent, color: 'white',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 10, fontWeight: 700,
+                        marginRight: 10, flexShrink: 0, marginTop: 2,
+                      }}>
                         AI
                       </div>
                     )}
-                    <div className="max-w-sm px-4 py-3 text-sm"
-                      style={msg.type === 'user' ? {
-                        background: theme.userBg,
-                        color: 'white',
-                        borderRadius: '20px 20px 4px 20px',
-                        boxShadow: `0 4px 15px rgba(${theme.accent},0.3)`,
-                      } : botBubbleStyle}>
+                    <div style={{
+                      maxWidth: '70%', padding: '10px 16px', fontSize: 13, lineHeight: 1.6,
+                      ...(msg.type === 'user' ? {
+                        background: t.accent, color: 'white',
+                        borderRadius: '18px 18px 4px 18px',
+                      } : {
+                        background: t.botBubbleBg,
+                        border: `1px solid ${t.botBubbleBorder}`,
+                        color: t.botBubbleText,
+                        borderRadius: '18px 18px 18px 4px',
+                        boxShadow: dark ? 'none' : '0 1px 6px rgba(0,0,0,0.06)',
+                      }),
+                    }}>
                       {msg.text}
                     </div>
                   </div>
 
                   {/* Recommandations */}
                   {msg.recommendations?.length > 0 && (
-                    <div className="ml-11 mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div style={{
+                      marginLeft: 38, marginTop: 10,
+                      display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+                      gap: 8,
+                    }}>
                       {msg.recommendations.map(course => (
-                        <motion.div
-                          key={course.id}
+                        <motion.div key={course.id}
                           whileHover={{ scale: 1.02, y: -2 }}
                           onClick={() => navigate(`/courses/${course.id}`)}
-                          className="p-3 rounded-xl cursor-pointer transition"
-                          style={isDark ? {
-                            background: theme.accentBg,
-                            border: `1px solid ${theme.accentBorder}`,
-                          } : {
-                            background: 'white',
-                            border: '1px solid #e5e7eb',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                          style={{
+                            padding: 12, borderRadius: 12, cursor: 'pointer',
+                            background: t.surface, border: `1px solid ${t.border}`,
+                            boxShadow: dark ? 'none' : '0 1px 6px rgba(0,0,0,0.04)',
                           }}>
-                          <div className="text-xs font-semibold mb-1"
-                            style={{ color: theme.accentHex }}>
+                          <div style={{ fontSize: 10, fontWeight: 600, color: t.accent, marginBottom: 3 }}>
                             {course.categoryName || 'Formation'}
                           </div>
-                          <div className={`text-sm font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-800'}`}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: t.textPrimary, marginBottom: 3 }}>
                             {course.title}
                           </div>
-                          <div className="text-xs"
-                            style={{ color: isDark ? 'rgba(255,255,255,0.4)' : '#9ca3af' }}>
-                            Par {course.instructorName} • {course.level}
+                          <div style={{ fontSize: 10, color: t.textSub }}>
+                            Par {course.instructorName} · {course.level}
                           </div>
                         </motion.div>
                       ))}
@@ -235,25 +211,27 @@ const ChatbotPage = () => {
               ))}
             </AnimatePresence>
 
-            {/* Loading */}
+            {/* Loading dots */}
             {loading && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex justify-start">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center mr-3 text-white text-xs font-bold"
-                  style={{ background: theme.aiBg }}>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                style={{ display: 'flex', alignItems: 'flex-start' }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: '50%', background: t.accent,
+                  color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: 700, marginRight: 10, flexShrink: 0,
+                }}>
                   AI
                 </div>
-                <div className="px-4 py-3 rounded-2xl" style={botBubbleStyle}>
-                  <div className="flex gap-1">
+                <div style={{
+                  padding: '12px 16px', borderRadius: '18px 18px 18px 4px',
+                  background: t.botBubbleBg, border: `1px solid ${t.botBubbleBorder}`,
+                }}>
+                  <div style={{ display: 'flex', gap: 4 }}>
                     {[0, 150, 300].map(d => (
-                      <motion.div
-                        key={d}
-                        animate={{ y: [0, -6, 0] }}
+                      <motion.div key={d}
+                        animate={{ y: [0, -5, 0] }}
                         transition={{ repeat: Infinity, duration: 0.8, delay: d / 1000 }}
-                        className="w-2 h-2 rounded-full"
-                        style={{ background: theme.accentHex }} />
+                        style={{ width: 6, height: 6, borderRadius: '50%', background: t.accent }} />
                     ))}
                   </div>
                 </div>
@@ -263,19 +241,21 @@ const ChatbotPage = () => {
           </div>
 
           {/* Suggestions */}
-          <div className="px-6 py-3 flex gap-2 overflow-x-auto"
-            style={{ borderTop: `1px solid ${isDark ? `rgba(${theme.accent},0.1)` : '#f0f0f0'}` }}>
+          <div style={{
+            padding: '10px 16px',
+            borderTop: `1px solid ${t.border}`,
+            display: 'flex', gap: 8, overflowX: 'auto',
+            flexShrink: 0, scrollbarWidth: 'none',
+          }}>
             {suggestions.map(s => (
-              <motion.button
-                key={s}
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.96 }}
+              <motion.button key={s}
+                whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                 onClick={() => setInput(s)}
-                className="text-xs px-3 py-1.5 rounded-full whitespace-nowrap flex-shrink-0 font-medium"
                 style={{
-                  background: theme.suggBg,
-                  border: `1px solid ${theme.suggBorder}`,
-                  color: theme.suggColor,
+                  fontSize: 11, padding: '5px 12px', borderRadius: 99,
+                  whiteSpace: 'nowrap', flexShrink: 0, fontWeight: 500,
+                  background: t.accentBg, border: `1px solid ${t.accentBorder}`,
+                  color: t.accentText, cursor: 'pointer',
                 }}>
                 {s}
               </motion.button>
@@ -283,34 +263,31 @@ const ChatbotPage = () => {
           </div>
 
           {/* Input */}
-          <form onSubmit={handleSend} className="p-4 flex gap-3"
-            style={{ borderTop: `1px solid ${isDark ? `rgba(${theme.accent},0.1)` : '#f0f0f0'}` }}>
+          <form onSubmit={handleSend} style={{
+            padding: '12px 16px',
+            borderTop: `1px solid ${t.border}`,
+            display: 'flex', gap: 10, flexShrink: 0,
+          }}>
             <input
-              type="text"
-              value={input}
+              type="text" value={input}
               onChange={e => setInput(e.target.value)}
               placeholder="Tapez votre message..."
               disabled={loading}
-              className="flex-1 text-sm outline-none rounded-xl px-4 py-2.5"
-              style={isDark ? {
-                background: theme.accentBg,
-                border: `1px solid ${theme.accentBorder}`,
-                color: 'white',
-              } : {
-                background: '#f9fafb',
-                border: '1px solid #e5e7eb',
-                color: '#111827',
-              }}
-            />
+              style={{
+                flex: 1, fontSize: 13, outline: 'none',
+                borderRadius: 12, padding: '10px 16px',
+                background: t.surfaceSub, border: `1px solid ${t.border}`,
+                color: t.textPrimary,
+              }} />
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
               type="submit"
               disabled={loading || !input.trim()}
-              className="px-5 py-2.5 rounded-xl font-semibold text-white text-sm disabled:opacity-40"
               style={{
-                background: `linear-gradient(135deg, ${theme.accentHex}, ${isInstructor ? '#059669' : '#6366f1'})`,
-                boxShadow: `0 4px 12px rgba(${theme.accent},0.3)`,
+                padding: '10px 20px', borderRadius: 12,
+                fontWeight: 600, color: 'white', fontSize: 13,
+                background: t.accent, border: 'none', cursor: 'pointer',
+                opacity: loading || !input.trim() ? 0.4 : 1,
               }}>
               Envoyer
             </motion.button>

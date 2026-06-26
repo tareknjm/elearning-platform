@@ -1,201 +1,313 @@
-import { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import Layout from '../../components/Layout';
-import api from '../../services/api';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import InstructorLayout from '../../components/layouts/InstructorLayout';
+import { useTheme } from '../../context/ThemeContext';
+import { getCourseById } from '../../services/courseService';
+import api from '../../services/api';
+
+const emptyQuestion = () => ({
+  id: Date.now() + Math.random(),
+  questionText: '',
+  options: [
+    { id: 1, optionText: '', correct: false },
+    { id: 2, optionText: '', correct: false },
+    { id: 3, optionText: '', correct: false },
+    { id: 4, optionText: '', correct: false },
+  ],
+});
+
 const CreateQuizPage = () => {
   const { courseId } = useParams();
   const navigate = useNavigate();
-  const [title, setTitle] = useState('Quiz final');
-  const [questions, setQuestions] = useState([
-    { questionText: '', options: [
-      { optionText: '', correct: false },
-      { optionText: '', correct: false },
-      { optionText: '', correct: false },
-      { optionText: '', correct: false },
-    ]}
-  ]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const { dark } = useTheme();
 
-  const addQuestion = () => {
-    setQuestions([...questions, {
-      questionText: '',
-      options: [
-        { optionText: '', correct: false },
-        { optionText: '', correct: false },
-        { optionText: '', correct: false },
-        { optionText: '', correct: false },
-      ]
-    }]);
+  const [course, setCourse]       = useState(null);
+  const [title, setTitle]         = useState('Quiz final');
+  const [questions, setQuestions] = useState([emptyQuestion()]);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState('');
+  const [success, setSuccess]     = useState('');
+
+  const t = {
+    textPrimary:  dark ? '#ffffff'                 : '#111827',
+    textSub:      dark ? 'rgba(255,255,255,0.45)'  : '#6b7280',
+    surface:      dark ? '#0d1a14'                 : '#ffffff',
+    border:       dark ? 'rgba(16,185,129,0.15)'   : '#e5e7eb',
+    shadow:       dark ? 'none'                    : '0 1px 12px rgba(0,0,0,0.05)',
+    accent:       '#10b981',
+    accentText:   dark ? '#6ee7b7'                 : '#059669',
+    accentLabel:  dark ? 'rgba(16,185,129,0.7)'    : '#059669',
+    innerBg:      dark ? 'rgba(16,185,129,0.06)'   : '#f9fafb',
+    innerBorder:  dark ? 'rgba(16,185,129,0.18)'   : '#e5e7eb',
+    optBg:        dark ? 'rgba(255,255,255,0.03)'  : '#f8f9fa',
+    optBorder:    dark ? 'rgba(255,255,255,0.07)'  : '#e5e7eb',
+    optCorrectBg: dark ? 'rgba(16,185,129,0.1)'    : 'rgba(16,185,129,0.07)',
+    optCorrectBorder: dark ? 'rgba(16,185,129,0.35)' : 'rgba(16,185,129,0.25)',
+    inputColor:   dark ? 'white'                   : '#111827',
+    placeholderColor: dark ? 'rgba(255,255,255,0.2)' : '#9ca3af',
   };
 
-  const removeQuestion = (index) => {
-    setQuestions(questions.filter((_, i) => i !== index));
+  const cardStyle = {
+    background: t.surface,
+    border: `1px solid ${t.border}`,
+    borderRadius: '20px',
+    boxShadow: t.shadow,
   };
 
-  const updateQuestion = (index, text) => {
-    const updated = [...questions];
-    updated[index].questionText = text;
-    setQuestions(updated);
+  const inputStyle = {
+    background: t.innerBg,
+    border: `1px solid ${t.innerBorder}`,
+    borderRadius: '12px',
+    color: t.textPrimary,
+    width: '100%',
+    padding: '12px 16px',
+    fontSize: '14px',
+    outline: 'none',
   };
 
-  const updateOption = (qIndex, oIndex, text) => {
-    const updated = [...questions];
-    updated[qIndex].options[oIndex].optionText = text;
-    setQuestions(updated);
+  const labelStyle = {
+    color: t.accentLabel,
+    fontSize: '11px',
+    fontWeight: 700,
+    marginBottom: '6px',
+    display: 'block',
+    textTransform: 'uppercase',
+    letterSpacing: '0.12em',
   };
 
-  const setCorrectOption = (qIndex, oIndex) => {
-    const updated = [...questions];
-    updated[qIndex].options = updated[qIndex].options.map((o, i) => ({
-      ...o, correct: i === oIndex
+  useEffect(() => {
+    getCourseById(courseId).then(setCourse).catch(console.error);
+  }, [courseId]);
+
+  const updateQuestion = (qId, field, value) =>
+    setQuestions(qs => qs.map(q => q.id === qId ? { ...q, [field]: value } : q));
+
+  const updateOption = (qId, optId, field, value) =>
+    setQuestions(qs => qs.map(q => {
+      if (q.id !== qId) return q;
+      return { ...q, options: q.options.map(o => {
+        if (field === 'correct') return { ...o, correct: o.id === optId };
+        return o.id === optId ? { ...o, [field]: value } : o;
+      })};
     }));
-    setQuestions(updated);
-  };
 
-  const handleSubmit = async () => {
-    setError('');
-    // Validation
-    for (let i = 0; i < questions.length; i++) {
-      if (!questions[i].questionText.trim()) {
-        setError(`Question ${i + 1} est vide`);
-        return;
-      }
-      const hasCorrect = questions[i].options.some(o => o.correct);
-      if (!hasCorrect) {
-        setError(`Question ${i + 1} : sélectionnez la bonne réponse`);
-        return;
-      }
-      const hasEmpty = questions[i].options.some(o => !o.optionText.trim());
-      if (hasEmpty) {
-        setError(`Question ${i + 1} : toutes les options doivent être remplies`);
-        return;
-      }
+  const addQuestion = () => setQuestions(qs => [...qs, emptyQuestion()]);
+  const removeQuestion = qId => setQuestions(qs => qs.filter(q => q.id !== qId));
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    for (const q of questions) {
+      if (!q.questionText.trim()) { setError('Remplissez tous les textes de questions'); return; }
+      if (q.options.some(o => !o.optionText.trim())) { setError('Remplissez toutes les options'); return; }
+      if (!q.options.some(o => o.correct)) { setError('Cochez une bonne réponse par question'); return; }
     }
-
-    setLoading(true);
+    setError(''); setLoading(true);
     try {
       await api.post('/instructor/quiz', {
-        title,
-        courseId: Number(courseId),
-        questions
+        title, courseId: Number(courseId),
+        questions: questions.map(q => ({
+          questionText: q.questionText,
+          options: q.options.map(o => ({ optionText: o.optionText, correct: o.correct })),
+        })),
       });
       setSuccess('Quiz créé avec succès !');
       setTimeout(() => navigate('/instructor/dashboard'), 1500);
-    } catch (err) {
-      setError('Erreur lors de la création du quiz');
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError('Erreur lors de la création du quiz'); }
+    finally { setLoading(false); }
   };
 
   return (
     <InstructorLayout>
+      <style>{`
+        .cq-input:focus { border-color: rgba(16,185,129,0.5) !important; box-shadow: 0 0 0 3px rgba(16,185,129,0.1); }
+        .cq-input::placeholder { color: ${t.placeholderColor}; }
+      `}</style>
+
       <div className="max-w-3xl mx-auto">
-        <button onClick={() => navigate(-1)}
-          className="text-primary-600 hover:underline mb-6 block text-sm">
-          ← Retour
-        </button>
-
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Créer le quiz final</h1>
-        <p className="text-gray-500 mb-6">
-          Les apprenants doivent obtenir 70% pour recevoir leur certificat
-        </p>
-
-        {error && (
-          <div className="bg-red-50 border border-red-100 text-red-600 p-3 rounded-xl mb-4 text-sm">
-            ⚠️ {error}
-          </div>
-        )}
-        {success && (
-          <div className="bg-emerald-50 border border-emerald-100 text-emerald-600 p-3 rounded-xl mb-4 text-sm">
-            ✅ {success}
-          </div>
-        )}
-
-        {/* Titre du quiz */}
-        <div className="card mb-5">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Titre du quiz
-          </label>
-          <input type="text" value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="input" placeholder="Ex: Quiz final - Spring Boot" />
-        </div>
-
-        {/* Questions */}
-        {questions.map((question, qIndex) => (
-          <div key={qIndex} className="card mb-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                  {qIndex + 1}
-                </div>
-                <span className="font-semibold text-gray-700">Question {qIndex + 1}</span>
-              </div>
-              {questions.length > 1 && (
-                <button onClick={() => removeQuestion(qIndex)}
-                  className="text-red-400 hover:text-red-600 text-sm transition">
-                  Supprimer
-                </button>
-              )}
+        {/* Header */}
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-7">
+          <button onClick={() => navigate(`/instructor/courses/${courseId}/videos`)}
+            className="flex items-center gap-2 text-[13px] mb-3 transition"
+            style={{ color: t.accentLabel }}
+            onMouseEnter={e => e.currentTarget.style.color = t.accentText}
+            onMouseLeave={e => e.currentTarget.style.color = t.accentLabel}>
+            ← Retour
+          </button>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+              style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.2)' }}>
+              📝
             </div>
+            <div>
+              <h1 className="text-[1.8rem] font-bold tracking-tight" style={{ color: t.textPrimary, letterSpacing: '-0.025em' }}>
+                Créer le quiz final
+              </h1>
+              {course && <p className="text-[12px] mt-0.5" style={{ color: t.textSub }}>{course.title}</p>}
+            </div>
+          </div>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[12px] font-semibold"
+            style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', color: dark ? '#fcd34d' : '#b45309' }}>
+            ⚡ Les apprenants doivent obtenir 70% pour recevoir leur certificat
+          </div>
+        </motion.div>
 
-            <textarea
-              value={question.questionText}
-              onChange={(e) => updateQuestion(qIndex, e.target.value)}
-              className="input resize-none mb-4"
-              rows={2}
-              placeholder="Saisissez votre question..." />
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Messages */}
+          <AnimatePresence>
+            {error && (
+              <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="p-3 rounded-xl text-[13px] flex items-center gap-2"
+                style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#fca5a5' }}>
+                ⚠️ {error}
+              </motion.div>
+            )}
+            {success && (
+              <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="p-3 rounded-xl text-[13px] flex items-center gap-2"
+                style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: t.accentText }}>
+                ✅ {success}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-            <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">
-              Options (cliquez sur ● pour marquer la bonne réponse)
-            </p>
+          {/* Titre quiz */}
+          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} style={cardStyle} className="p-6">
+            <div className="h-0.5 rounded-full mb-5 -mt-1" style={{ background: 'linear-gradient(to right, #10b981, #059669)' }} />
+            <label style={labelStyle}>Titre du quiz</label>
+            <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+              required className="cq-input" style={inputStyle} placeholder="Ex: Quiz final — Spring Boot" />
+          </motion.div>
 
-            <div className="space-y-2">
-              {question.options.map((option, oIndex) => (
-                <div key={oIndex} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition ${
-                  option.correct
-                    ? 'border-emerald-400 bg-emerald-50'
-                    : 'border-gray-100 bg-gray-50'
-                }`}>
-                  <button
-                    onClick={() => setCorrectOption(qIndex, oIndex)}
-                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition ${
-                      option.correct
-                        ? 'border-emerald-500 bg-emerald-500 text-white'
-                        : 'border-gray-300 hover:border-emerald-400'
-                    }`}>
-                    {option.correct && '✓'}
-                  </button>
-                  <input
-                    type="text"
-                    value={option.optionText}
-                    onChange={(e) => updateOption(qIndex, oIndex, e.target.value)}
-                    className="flex-1 bg-transparent outline-none text-sm text-gray-700"
-                    placeholder={`Option ${oIndex + 1}`} />
-                  {option.correct && (
-                    <span className="text-xs text-emerald-600 font-medium">✓ Correcte</span>
+          {/* Questions */}
+          <AnimatePresence>
+            {questions.map((q, qi) => (
+              <motion.div key={q.id}
+                initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10, scale: 0.96 }} transition={{ duration: 0.3 }}
+                style={cardStyle} className="p-6">
+                <div className="h-0.5 rounded-full mb-5 -mt-1" style={{ background: 'linear-gradient(to right, #10b981, #059669)' }} />
+
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-[13px] text-white"
+                      style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}>
+                      {qi + 1}
+                    </div>
+                    <span className="font-semibold text-[14px]" style={{ color: t.textPrimary }}>Question {qi + 1}</span>
+                  </div>
+                  {questions.length > 1 && (
+                    <motion.button type="button" whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                      onClick={() => removeQuestion(q.id)}
+                      className="text-[12px] px-3 py-1.5 rounded-xl font-medium"
+                      style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.18)', color: '#fca5a5' }}>
+                      Supprimer
+                    </motion.button>
                   )}
                 </div>
-              ))}
-            </div>
-          </div>
-        ))}
 
-        {/* Actions */}
-        <div className="flex gap-3 mt-4">
-          <button onClick={addQuestion}
-            className="btn-secondary flex-1 py-3">
-            + Ajouter une question
-          </button>
-          <button onClick={handleSubmit} disabled={loading}
-            className="btn-primary flex-1 py-3 disabled:opacity-50">
-            {loading ? 'Création...' : '🚀 Créer le quiz'}
-          </button>
-        </div>
+                <div className="mb-4">
+                  <label style={labelStyle}>Texte de la question</label>
+                  <textarea value={q.questionText}
+                    onChange={e => updateQuestion(q.id, 'questionText', e.target.value)}
+                    rows={2} placeholder="Saisissez votre question..."
+                    className="cq-input resize-none" style={inputStyle} />
+                </div>
+
+                <div>
+                  <label style={{ ...labelStyle, marginBottom: '10px' }}>
+                    Options — cliquez sur le cercle pour marquer la bonne réponse
+                  </label>
+                  <div className="space-y-2">
+                    {q.options.map((opt, oi) => (
+                      <motion.div key={opt.id} whileHover={{ x: 2 }}
+                        className="flex items-center gap-3 p-3 rounded-xl transition-all"
+                        style={{
+                          background: opt.correct ? t.optCorrectBg : t.optBg,
+                          border: `1px solid ${opt.correct ? t.optCorrectBorder : t.optBorder}`,
+                        }}>
+                        <motion.button type="button" whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }}
+                          onClick={() => updateOption(q.id, opt.id, 'correct', true)}
+                          className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all"
+                          style={opt.correct ? {
+                            background: 'linear-gradient(135deg, #10b981, #059669)',
+                            boxShadow: '0 0 10px rgba(16,185,129,0.4)',
+                          } : {
+                            background: 'transparent',
+                            border: `2px solid ${t.optBorder}`,
+                          }}>
+                          {opt.correct && (
+                            <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
+                              className="text-white text-[11px] font-black">✓</motion.span>
+                          )}
+                        </motion.button>
+                        <span className="text-[12px] font-bold flex-shrink-0"
+                          style={{ color: opt.correct ? t.accentText : t.textSub, minWidth: '16px' }}>
+                          {['A', 'B', 'C', 'D'][oi]}
+                        </span>
+                        <input type="text" value={opt.optionText}
+                          onChange={e => updateOption(q.id, opt.id, 'optionText', e.target.value)}
+                          placeholder={`Option ${['A', 'B', 'C', 'D'][oi]}...`}
+                          className="cq-input flex-1"
+                          style={{
+                            ...inputStyle,
+                            background: 'transparent',
+                            border: 'none',
+                            padding: '4px 0',
+                            color: opt.correct ? t.accentText : t.textPrimary,
+                          }} />
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+
+          {/* Ajouter question */}
+          <motion.button type="button" whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+            onClick={addQuestion}
+            className="w-full py-4 rounded-2xl font-semibold text-[13px] flex items-center justify-center gap-2 transition"
+            style={{ background: dark ? 'rgba(16,185,129,0.05)' : '#f8f9fa', border: `2px dashed ${dark ? 'rgba(16,185,129,0.25)' : '#d1d5db'}`, color: t.accentText }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(16,185,129,0.45)'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = dark ? 'rgba(16,185,129,0.25)' : '#d1d5db'}>
+            <span className="text-lg">+</span>
+            Ajouter une question
+          </motion.button>
+
+          {/* Footer */}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
+            style={cardStyle} className="p-5">
+            <div className="h-0.5 rounded-full mb-4 -mt-1" style={{ background: 'linear-gradient(to right, #10b981, #059669)' }} />
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="px-3 py-1.5 rounded-xl text-[12px] font-bold"
+                  style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: t.accentText }}>
+                  {questions.length} question{questions.length > 1 ? 's' : ''}
+                </div>
+                <div className="px-3 py-1.5 rounded-xl text-[12px] font-bold"
+                  style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)', color: dark ? '#fcd34d' : '#b45309' }}>
+                  Seuil : 70%
+                </div>
+              </div>
+              <p className="text-[11px]" style={{ color: t.textSub }}>Requis pour le certificat</p>
+            </div>
+            <div className="flex gap-3">
+              <motion.button type="submit" disabled={loading}
+                whileHover={{ scale: loading ? 1 : 1.02 }} whileTap={{ scale: loading ? 1 : 0.98 }}
+                className="flex-1 py-4 rounded-2xl font-bold text-white text-[13px] disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #10b981, #059669)', boxShadow: '0 4px 20px rgba(16,185,129,0.3)' }}>
+                {loading ? '⏳ Création...' : '🚀 Créer le quiz'}
+              </motion.button>
+              <motion.button type="button" whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                onClick={() => navigate(`/instructor/courses/${courseId}/videos`)}
+                className="px-6 py-4 rounded-2xl font-semibold text-[13px]"
+                style={{ background: dark ? 'rgba(255,255,255,0.04)' : '#f3f4f6', border: `1px solid ${t.border}`, color: t.textSub }}>
+                Annuler
+              </motion.button>
+            </div>
+          </motion.div>
+        </form>
       </div>
     </InstructorLayout>
   );

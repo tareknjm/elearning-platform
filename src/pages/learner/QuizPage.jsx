@@ -1,18 +1,63 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getQuiz, submitQuiz, downloadCertificate } from '../../services/quizService';
-import Layout from '../../components/Layout';
 import LearnerLayout from '../../components/layouts/LearnerLayout';
+
+const T = {
+  accent: '#6366f1',
+  accentRgb: '99,102,241',
+  accentEnd: '#4f46e5',
+  accentLight: '#a5b4fc',
+  accentBg: 'rgba(99,102,241,0.12)',
+  accentBorder: 'rgba(99,102,241,0.25)',
+  surface: 'rgba(255,255,255,0.05)',
+  surfaceBorder: 'rgba(255,255,255,0.1)',
+  text: '#ffffff',
+  textSub: 'rgba(255,255,255,0.5)',
+};
+
+/* ── Anneau de score animé ── */
+const ScoreRing = ({ percent, passed, size = 160 }) => {
+  const stroke = 12;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (percent / 100) * c;
+  return (
+    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} />
+        <motion.circle cx={size/2} cy={size/2} r={r} fill="none"
+          stroke={passed ? '#10b981' : '#ef4444'} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={c}
+          initial={{ strokeDashoffset: c }}
+          animate={{ strokeDashoffset: offset }}
+          transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.3 }} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <motion.span initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.8, type: 'spring' }}
+          className="text-4xl font-black" style={{ color: passed ? '#34d399' : '#f87171' }}>
+          {percent}%
+        </motion.span>
+        <span className="text-xs font-medium" style={{ color: T.textSub }}>score obtenu</span>
+      </div>
+    </div>
+  );
+};
+
 const QuizPage = () => {
   const { courseId } = useParams();
   const navigate = useNavigate();
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState({});
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [certLoading, setCertLoading] = useState(false);
   const [error, setError] = useState('');
+  const [direction, setDirection] = useState(1);
 
   useEffect(() => {
     getQuiz(courseId)
@@ -21,13 +66,25 @@ const QuizPage = () => {
       .finally(() => setLoading(false));
   }, [courseId]);
 
+  const questions = quiz?.questions || [];
+  const total = questions.length;
+  const currentQuestion = questions[currentIndex];
+  const answeredCount = Object.keys(answers).length;
+  const isLast = currentIndex === total - 1;
+  const isFirst = currentIndex === 0;
+
   const handleAnswer = (questionId, optionId) => {
     setAnswers(prev => ({ ...prev, [questionId]: optionId }));
   };
 
+  const goTo = (index) => {
+    setDirection(index > currentIndex ? 1 : -1);
+    setCurrentIndex(index);
+  };
+
   const handleSubmit = async () => {
-    if (Object.keys(answers).length < quiz.questions.length) {
-      setError('Veuillez répondre à toutes les questions');
+    if (answeredCount < total) {
+      setError('Veuillez répondre à toutes les questions avant de soumettre');
       return;
     }
     setSubmitting(true);
@@ -44,195 +101,389 @@ const QuizPage = () => {
 
   const handleDownloadCert = async () => {
     setCertLoading(true);
-    try {
-      await downloadCertificate(courseId);
-    } catch (err) {
-      setError('Erreur lors du téléchargement');
-    } finally {
-      setCertLoading(false);
-    }
+    try { await downloadCertificate(courseId); }
+    catch (err) { setError('Erreur lors du téléchargement'); }
+    finally { setCertLoading(false); }
   };
 
+  const handleRetry = () => {
+    setResult(null);
+    setAnswers({});
+    setCurrentIndex(0);
+  };
+
+  /* ── États de chargement / erreur ── */
   if (loading) return (
     <LearnerLayout>
-      <div className="text-center py-20 text-gray-400">Chargement du quiz...</div>
+      <div className="flex items-center justify-center py-32">
+        <div className="flex flex-col items-center gap-4">
+          <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            className="w-10 h-10 rounded-full border-2"
+            style={{ borderColor: `${T.accent} transparent transparent transparent` }} />
+          <p style={{ color: T.textSub }} className="text-sm">Chargement du quiz...</p>
+        </div>
+      </div>
     </LearnerLayout>
   );
 
   if (error && !quiz) return (
     <LearnerLayout>
-      <div className="max-w-2xl mx-auto text-center py-20">
+      <div className="max-w-md mx-auto text-center py-24">
         <div className="text-5xl mb-4">📝</div>
-        <h2 className="text-xl font-semibold text-gray-700 mb-2">Quiz non disponible</h2>
-        <p className="text-gray-400 mb-6">{error}</p>
-        <button onClick={() => navigate(-1)} className="btn-secondary">← Retour</button>
+        <h2 className="text-xl font-bold mb-2" style={{ color: T.text }}>Quiz non disponible</h2>
+        <p className="text-sm mb-6" style={{ color: T.textSub }}>{error}</p>
+        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+          onClick={() => navigate(-1)}
+          className="px-6 py-3 rounded-xl text-sm font-semibold"
+          style={{ background: T.surface, border: `1px solid ${T.surfaceBorder}`, color: T.text }}>
+          ← Retour
+        </motion.button>
       </div>
     </LearnerLayout>
   );
 
-  // Résultat affiché après soumission
+  /* ══════════ ÉCRAN RÉSULTAT ══════════ */
   if (result) return (
-    <LearnerLayout>
-      <div className="max-w-2xl mx-auto">
-        <div className={`card text-center py-12 ${
-          result.passed
-            ? 'border-2 border-emerald-200'
-            : 'border-2 border-red-100'
-        }`}>
-          <div className="text-6xl mb-4">{result.passed ? '🏆' : '😔'}</div>
+  <LearnerLayout>
+    <div className="max-w-lg mx-auto">
+      <motion.div
+        initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+        className="rounded-3xl overflow-hidden"
+        style={{
+          background: 'rgba(255,255,255,0.04)',
+          border: `1px solid ${result.passed ? 'rgba(16,185,129,0.25)' : 'rgba(239,68,68,0.2)'}`,
+          boxShadow: result.passed
+            ? '0 24px 60px rgba(16,185,129,0.12)'
+            : '0 24px 60px rgba(239,68,68,0.1)',
+        }}>
 
-          <h2 className={`text-3xl font-bold mb-2 ${
-            result.passed ? 'text-emerald-600' : 'text-red-500'
-          }`}>
-            {result.passed ? 'Quiz réussi !' : 'Quiz échoué'}
-          </h2>
+        {/* ── Bande colorée haut ── */}
+        <div className="h-1.5 w-full"
+          style={{ background: result.passed
+            ? 'linear-gradient(90deg,#10b981,#34d399)'
+            : 'linear-gradient(90deg,#ef4444,#f87171)' }} />
 
-          {/* Score circulaire */}
-          <div className="flex justify-center my-6">
-            <div className={`w-32 h-32 rounded-full flex flex-col items-center justify-center border-8 ${
-              result.passed ? 'border-emerald-400' : 'border-red-300'
-            }`}>
-              <span className={`text-3xl font-bold ${
-                result.passed ? 'text-emerald-600' : 'text-red-500'
-              }`}>
-                {result.scorePercent}%
-              </span>
-              <span className="text-xs text-gray-400">score</span>
-            </div>
+        <div className="p-10 text-center">
+
+          {/* ── Icône principale ── */}
+          <motion.div
+            initial={{ scale: 0, rotate: -15 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ delay: 0.15, type: 'spring', stiffness: 180 }}
+            className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-5"
+            style={{
+              background: result.passed
+                ? 'linear-gradient(135deg,rgba(16,185,129,0.15),rgba(16,185,129,0.05))'
+                : 'linear-gradient(135deg,rgba(239,68,68,0.15),rgba(239,68,68,0.05))',
+              border: `1px solid ${result.passed ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+            }}>
+            <i className={`fa-solid ${result.passed ? 'fa-trophy' : 'fa-circle-xmark'} text-4xl`}
+              style={{ color: result.passed ? '#10b981' : '#ef4444' }} />
+          </motion.div>
+
+          {/* ── Titre ── */}
+          <motion.h2
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="text-2xl font-black mb-1"
+            style={{ color: result.passed ? '#34d399' : '#f87171' }}>
+            {result.passed ? 'Quiz réussi !' : 'Quiz non validé'}
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            transition={{ delay: 0.35 }}
+            className="text-sm mb-8" style={{ color: T.textSub }}>
+            {result.passed
+              ? 'Félicitations, vous avez validé cette formation'
+              : 'Pas d\'inquiétude, vous pouvez réessayer'}
+          </motion.p>
+
+          {/* ── Anneau de score ── */}
+          <div className="flex justify-center mb-6">
+            <ScoreRing percent={result.scorePercent} passed={result.passed} />
           </div>
 
-          <p className="text-gray-600 mb-2">
-            {result.score} bonne(s) réponse(s) sur {result.totalQuestions}
-          </p>
-          <p className={`font-medium mb-8 ${
-            result.passed ? 'text-emerald-600' : 'text-red-500'
-          }`}>
-            {result.message}
-          </p>
+          {/* ── Stats ── */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.9 }}
+            className="flex items-center justify-center gap-6 mb-8 py-4 rounded-2xl"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="text-center">
+              <div className="text-xl font-black" style={{ color: T.text }}>{result.score}</div>
+              <div className="text-[11px]" style={{ color: T.textSub }}>
+                <i className="fa-solid fa-check mr-1" style={{ color: '#10b981' }} />
+                correctes
+              </div>
+            </div>
+            <div className="w-px h-8" style={{ background: 'rgba(255,255,255,0.1)' }} />
+            <div className="text-center">
+              <div className="text-xl font-black" style={{ color: T.text }}>{result.totalQuestions}</div>
+              <div className="text-[11px]" style={{ color: T.textSub }}>
+                <i className="fa-solid fa-list-check mr-1" style={{ color: T.accentLight }} />
+                questions
+              </div>
+            </div>
+            <div className="w-px h-8" style={{ background: 'rgba(255,255,255,0.1)' }} />
+            <div className="text-center">
+              <div className="text-xl font-black" style={{ color: result.passed ? '#34d399' : '#f87171' }}>
+                {result.scorePercent}%
+              </div>
+              <div className="text-[11px]" style={{ color: T.textSub }}>
+                <i className="fa-solid fa-chart-simple mr-1" style={{ color: T.accentLight }} />
+                score
+              </div>
+            </div>
+          </motion.div>
 
-          <div className="flex gap-3 justify-center">
+          {/* ── Message ── */}
+          <motion.p
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            transition={{ delay: 1 }}
+            className="text-sm font-semibold mb-8"
+            style={{ color: result.passed ? '#6ee7b7' : '#fca5a5' }}>
+            {result.message}
+          </motion.p>
+
+          {/* ── Boutons ── */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.1 }}
+            className="flex gap-3 justify-center flex-wrap">
             {result.passed ? (
               <>
-                <button onClick={handleDownloadCert} disabled={certLoading}
-                  className="btn-primary px-8 py-3">
-                  {certLoading ? 'Génération...' : '⬇ Télécharger mon certificat'}
-                </button>
-                <button onClick={() => navigate('/learner/dashboard')}
-                  className="btn-secondary px-6 py-3">
+                <motion.button
+                  whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }}
+                  onClick={handleDownloadCert} disabled={certLoading}
+                  className="px-7 py-3.5 rounded-2xl text-sm font-bold text-white flex items-center gap-2.5 disabled:opacity-50"
+                  style={{
+                    background: 'linear-gradient(135deg,#10b981,#059669)',
+                    boxShadow: '0 8px 24px rgba(16,185,129,0.35)',
+                  }}>
+                  <i className={`fa-solid ${certLoading ? 'fa-spinner fa-spin' : 'fa-download'}`} />
+                  {certLoading ? 'Génération...' : 'Télécharger mon certificat'}
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }}
+                  onClick={() => navigate('/learner/dashboard')}
+                  className="px-6 py-3.5 rounded-2xl text-sm font-semibold flex items-center gap-2"
+                  style={{ background: T.surface, border: `1px solid ${T.surfaceBorder}`, color: T.text }}>
+                  <i className="fa-solid fa-house" />
                   Mon espace
-                </button>
+                </motion.button>
               </>
             ) : (
               <>
-                <button onClick={() => {
-                  setResult(null);
-                  setAnswers({});
-                }}
-                  className="btn-primary px-8 py-3">
-                  🔄 Réessayer
-                </button>
-                <button onClick={() => navigate(-1)} className="btn-secondary px-6 py-3">
-                  ← Retour au cours
-                </button>
+                <motion.button
+                  whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }}
+                  onClick={handleRetry}
+                  className="px-7 py-3.5 rounded-2xl text-sm font-bold text-white flex items-center gap-2.5"
+                  style={{
+                    background: `linear-gradient(135deg,${T.accent},${T.accentEnd})`,
+                    boxShadow: `0 8px 24px rgba(${T.accentRgb},0.35)`,
+                  }}>
+                  <i className="fa-solid fa-rotate-right" />
+                  Réessayer
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }}
+                  onClick={() => navigate(-1)}
+                  className="px-6 py-3.5 rounded-2xl text-sm font-semibold flex items-center gap-2"
+                  style={{ background: T.surface, border: `1px solid ${T.surfaceBorder}`, color: T.text }}>
+                  <i className="fa-solid fa-arrow-left" />
+                  Retour au cours
+                </motion.button>
               </>
             )}
-          </div>
+          </motion.div>
         </div>
-      </div>
-    </LearnerLayout>
-  );
+      </motion.div>
+    </div>
+  </LearnerLayout>
+);
+
+  /* ══════════ ÉCRAN QUIZ — une question à la fois ══════════ */
+  const variants = {
+    enter: (dir) => ({ opacity: 0, x: dir > 0 ? 40 : -40 }),
+    center: { opacity: 1, x: 0 },
+    exit: (dir) => ({ opacity: 0, x: dir > 0 ? -40 : 40 }),
+  };
 
   return (
     <LearnerLayout>
-      <div className="max-w-3xl mx-auto">
-        <button onClick={() => navigate(-1)}
-          className="text-primary-600 hover:underline mb-6 block text-sm">
-          ← Retour au cours
-        </button>
+      <div className="max-w-2xl mx-auto">
 
-        {/* Header Quiz */}
-        <div className="card mb-6 bg-gradient-to-r from-primary-600 to-accent-600 text-white">
-          <div className="flex items-center gap-4">
-            <div className="text-4xl">📝</div>
-            <div>
-              <h1 className="text-xl font-bold">{quiz?.title || 'Quiz final'}</h1>
-              <p className="text-primary-100 text-sm mt-1">
-                {quiz?.questions?.length} questions • Score minimum : 70%
+        <motion.button initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+          whileHover={{ x: -3 }}
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-1.5 text-sm font-medium mb-6"
+          style={{ color: T.accentLight }}>
+          <svg viewBox="0 0 24 24" fill="none" className="w-3.5 h-3.5" stroke="currentColor" strokeWidth="2.5">
+            <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+          </svg>
+          Retour au cours
+        </motion.button>
+
+        {/* ── Header ── */}
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-3xl p-6 mb-6 relative overflow-hidden"
+          style={{ background: `linear-gradient(135deg,${T.accent},${T.accentEnd})`, boxShadow: `0 16px 40px rgba(${T.accentRgb},0.3)` }}>
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
+              style={{ background: 'rgba(255,255,255,0.15)' }}>📝</div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg font-bold text-white truncate">{quiz?.title || 'Quiz final'}</h1>
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                {total} questions • Score minimum requis : 70%
               </p>
             </div>
-            <div className="ml-auto text-right">
-              <div className="text-2xl font-bold">
-                {Object.keys(answers).length}/{quiz?.questions?.length}
-              </div>
-              <div className="text-primary-200 text-xs">répondu(es)</div>
+            <div className="text-right flex-shrink-0">
+              <div className="text-2xl font-black text-white">{answeredCount}/{total}</div>
+              <div className="text-[10px]" style={{ color: 'rgba(255,255,255,0.7)' }}>répondu(es)</div>
             </div>
           </div>
 
-          {/* Barre de progression quiz */}
-          <div className="mt-4 bg-white/20 rounded-full h-2">
-            <div className="h-2 bg-white rounded-full transition-all"
-              style={{
-                width: `${quiz?.questions?.length
-                  ? (Object.keys(answers).length / quiz.questions.length) * 100
-                  : 0}%`
-              }}>
-            </div>
+          {/* Dots de navigation */}
+          <div className="flex gap-1.5 mt-5 relative z-10">
+            {questions.map((q, i) => (
+              <motion.button key={q.id} whileHover={{ scale: 1.15 }} whileTap={{ scale: 0.9 }}
+                onClick={() => goTo(i)}
+                className="flex-1 h-2 rounded-full overflow-hidden relative"
+                style={{ background: 'rgba(255,255,255,0.25)' }}>
+                {(answers[q.id] !== undefined || i === currentIndex) && (
+                  <motion.div layoutId={`dot-${i}`}
+                    className="absolute inset-0 rounded-full"
+                    style={{ background: i === currentIndex ? 'white' : 'rgba(255,255,255,0.85)' }}
+                    initial={{ scaleX: 0 }} animate={{ scaleX: 1 }}
+                    transition={{ duration: 0.3 }} />
+                )}
+              </motion.button>
+            ))}
           </div>
-        </div>
+        </motion.div>
 
-        {error && (
-          <div className="bg-red-50 border border-red-100 text-red-600 p-3 rounded-xl mb-4 text-sm">
-            ⚠️ {error}
-          </div>
-        )}
+        <AnimatePresence>
+          {error && (
+            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="p-3 rounded-xl mb-4 text-sm flex items-center gap-2"
+              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#fca5a5' }}>
+              ⚠️ {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Questions */}
-        <div className="space-y-4">
-          {quiz?.questions?.map((question, index) => (
-            <div key={question.id} className={`card transition-all ${
-              answers[question.id] ? 'border-primary-200' : ''
-            }`}>
-              <div className="flex items-start gap-3 mb-4">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                  answers[question.id]
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {answers[question.id] ? '✓' : index + 1}
+        {/* ── Question courante ── */}
+        <AnimatePresence mode="wait" custom={direction}>
+          {currentQuestion && (
+            <motion.div key={currentQuestion.id}
+              custom={direction}
+              variants={variants}
+              initial="enter" animate="center" exit="exit"
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="rounded-3xl p-7 mb-6"
+              style={{ background: T.surface, border: `1px solid ${T.surfaceBorder}` }}>
+
+              <div className="flex items-start gap-3 mb-6">
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                  style={{
+                    background: answers[currentQuestion.id] !== undefined
+                      ? 'linear-gradient(135deg,#10b981,#059669)'
+                      : T.accentBg,
+                    color: answers[currentQuestion.id] !== undefined ? 'white' : T.accentLight,
+                    border: answers[currentQuestion.id] === undefined ? `1px solid ${T.accentBorder}` : 'none',
+                  }}>
+                  {answers[currentQuestion.id] !== undefined ? (
+                    <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth="3">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  ) : currentIndex + 1}
                 </div>
-                <p className="font-medium text-gray-800 pt-1">{question.questionText}</p>
+                <div className="flex-1 pt-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider mb-1" style={{ color: T.textSub }}>
+                    Question {currentIndex + 1} sur {total}
+                  </p>
+                  <p className="font-bold text-lg leading-snug" style={{ color: T.text }}>
+                    {currentQuestion.questionText}
+                  </p>
+                </div>
               </div>
 
-              <div className="space-y-2 ml-11">
-                {question.options?.map((option) => (
-                  <button key={option.id}
-                    onClick={() => handleAnswer(question.id, option.id)}
-                    className={`w-full text-left px-4 py-3 rounded-xl border-2 text-sm transition-all ${
-                      answers[question.id] === option.id
-                        ? 'border-primary-500 bg-primary-50 text-primary-700 font-medium'
-                        : 'border-gray-100 hover:border-primary-200 hover:bg-gray-50 text-gray-600'
-                    }`}>
-                    <span className={`inline-flex w-6 h-6 rounded-full border-2 mr-3 items-center justify-center text-xs ${
-                      answers[question.id] === option.id
-                        ? 'border-primary-500 bg-primary-500 text-white'
-                        : 'border-gray-300'
-                    }`}>
-                      {answers[question.id] === option.id ? '●' : ''}
-                    </span>
-                    {option.optionText}
-                  </button>
-                ))}
+              <div className="space-y-2.5">
+                {currentQuestion.options?.map((option, i) => {
+                  const isSelected = answers[currentQuestion.id] === option.id;
+                  return (
+                    <motion.button key={option.id}
+                      initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
+                      onClick={() => handleAnswer(currentQuestion.id, option.id)}
+                      className="w-full text-left px-5 py-3.5 rounded-2xl text-sm font-medium flex items-center gap-3 transition-colors"
+                      style={isSelected ? {
+                        background: `linear-gradient(135deg,rgba(99,102,241,0.22),rgba(79,70,229,0.12))`,
+                        border: `1.5px solid rgba(${T.accentRgb},0.5)`,
+                        color: T.text,
+                      } : {
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1.5px solid rgba(255,255,255,0.08)',
+                        color: 'rgba(255,255,255,0.7)',
+                      }}>
+                      <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={isSelected ? {
+                          background: T.accent,
+                          boxShadow: `0 0 0 3px rgba(${T.accentRgb},0.2)`,
+                        } : { border: '1.5px solid rgba(255,255,255,0.25)' }}>
+                        {isSelected && (
+                          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+                            className="w-2 h-2 rounded-full bg-white" />
+                        )}
+                      </span>
+                      {option.optionText}
+                    </motion.button>
+                  );
+                })}
               </div>
-            </div>
-          ))}
-        </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Bouton soumettre */}
-        <div className="mt-6 flex justify-end">
-          <button onClick={handleSubmit} disabled={submitting}
-            className="btn-primary px-10 py-3 text-base disabled:opacity-50">
-            {submitting ? 'Correction en cours...' : 'Soumettre le quiz →'}
-          </button>
+        {/* ── Navigation préc/suiv ── */}
+        <div className="flex items-center justify-between gap-3">
+          <motion.button whileHover={{ scale: 1.03, x: -2 }} whileTap={{ scale: 0.97 }}
+            disabled={isFirst}
+            onClick={() => goTo(currentIndex - 1)}
+            className="flex items-center gap-1.5 px-5 py-3 rounded-xl text-sm font-semibold transition disabled:opacity-30"
+            style={{ background: T.surface, border: `1px solid ${T.surfaceBorder}`, color: T.text }}>
+            <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth="2">
+              <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+            </svg>
+            Précédent
+          </motion.button>
+
+          {isLast ? (
+            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+              disabled={submitting}
+              onClick={handleSubmit}
+              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg,#10b981,#059669)', boxShadow: '0 6px 20px rgba(16,185,129,0.35)' }}>
+              {submitting ? 'Correction en cours...' : 'Soumettre le quiz'}
+              {!submitting && (
+                <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              )}
+            </motion.button>
+          ) : (
+            <motion.button whileHover={{ scale: 1.03, x: 2 }} whileTap={{ scale: 0.97 }}
+              onClick={() => goTo(currentIndex + 1)}
+              className="flex items-center gap-1.5 px-5 py-3 rounded-xl text-sm font-semibold text-white transition"
+              style={{ background: `linear-gradient(135deg,${T.accent},${T.accentEnd})`, boxShadow: `0 4px 14px rgba(${T.accentRgb},0.4)` }}>
+              Suivant
+              <svg viewBox="0 0 24 24" fill="none" className="w-4 h-4" stroke="currentColor" strokeWidth="2">
+                <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </motion.button>
+          )}
         </div>
       </div>
     </LearnerLayout>

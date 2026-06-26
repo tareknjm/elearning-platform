@@ -1,200 +1,178 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { motion } from 'framer-motion';
 import NotificationBell from '../NotificationBell';
+import ThemeToggle from '../ThemeToggle';
+
+const navItems = [
+  {
+    to: '/instructor/dashboard', label: 'Dashboard',
+    icon: <i className="fa-solid fa-gauge-high w-4 text-center" />,
+  },
+  {
+    to: '/instructor/analytics', label: 'Analytics',
+    icon: <i className="fa-solid fa-chart-line w-4 text-center" />,
+  },
+  {
+    to: '/instructor/availability', label: 'Disponibilités',
+    icon: <i className="fa-solid fa-calendar-week w-4 text-center" />,
+  },
+  {
+    to: '/instructor/video-calls', label: 'Mes appels',
+    icon: <i className="fa-solid fa-video w-4 text-center" />,
+    badge: 'Nouveau',
+  },
+  {
+  to: '/instructor/absences', label: 'Absences',
+  icon: <i className="fa-solid fa-file-medical w-4 text-center" />,
+},
+  {
+    to: '/instructor/create-course', label: 'Créer un cours',
+    icon: <i className="fa-solid fa-circle-plus w-4 text-center" />,
+  },
+  {
+    to: '/chatbot', label: 'Assistant IA',
+    icon: <i className="fa-solid fa-robot w-4 text-center" />,
+  },
+];
 
 const InstructorLayout = ({ children }) => {
   const { user, logout } = useAuth();
+  const { dark } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+  const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
 
-  const isActive = (path) => location.pathname === path;
+  const bg           = dark ? '#0a110f' : '#f0fdf4';
+  const sidebarBg    = dark ? 'linear-gradient(180deg,#0d1a14 0%,#0a140f 100%)' : 'linear-gradient(180deg,#ffffff 0%,#f0fdf4 100%)';
+  const sidebarBorder= dark ? 'rgba(16,185,129,0.15)' : '#d1fae5';
+  const headerBg     = dark ? 'rgba(10,17,15,0.85)' : 'rgba(255,255,255,0.9)';
+  const headerBorder = dark ? 'rgba(16,185,129,0.1)' : '#d1fae5';
+  const navHover     = dark ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.05)';
+  const navActive    = dark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.08)';
+  const textPrimary  = dark ? '#ffffff' : '#111827';
+  const textSub      = dark ? 'rgba(255,255,255,0.45)' : '#6b7280';
+  const accent       = '#10b981';
+  const accentLight  = dark ? '#6ee7b7' : '#059669';
 
-  const navItems = [
-    { to: '/instructor/dashboard', icon: '🎯', label: 'Mes formations' },
-    { to: '/instructor/analytics', icon: '📊', label: 'Analytics' },
-    { to: '/instructor/create-course', icon: '✏️', label: 'Créer' },
-    { to: '/courses', icon: '🌍', label: 'Explorer' },
-    { to: '/chatbot', icon: '🤖', label: 'Assistant' },
-  ];
+  const currentLabel = navItems.find(n => isActive(n.to))?.label || 'Dashboard';
 
   return (
-    <div className="min-h-screen flex" style={{ background: '#0a110f' }}>
+    <div className="min-h-screen flex" style={{ background: bg }}>
 
-      <style>{`
-        .inst-form-card {
-        background: #0d1a14;
-        border: 1px solid rgba(16,185,129,0.15);
-        border-radius: 20px;
-        }
-        .inst-input {
-        background: rgba(16,185,129,0.05);
-        border: 1px solid rgba(16,185,129,0.2);
-        border-radius: 12px;
-        color: white;
-        width: 100%;
-        padding: 10px 16px;
-        font-size: 14px;
-        transition: all 0.2s ease;
-        outline: none;
-        }
-        .inst-input:focus {
-        border-color: rgba(16,185,129,0.5);
-        box-shadow: 0 0 0 3px rgba(16,185,129,0.1);
-        }
-        .inst-input::placeholder { color: rgba(255,255,255,0.3); }
-        .inst-label { color: #6ee7b7; font-size: 14px; font-weight: 500; margin-bottom: 6px; display: block; }
-        .inst-sidebar {
-          background: linear-gradient(180deg, #0d1a14 0%, #0a140f 100%);
-          border-right: 1px solid rgba(16,185,129,0.15);
-        }
-        .inst-nav-item {
-          transition: all 0.2s ease;
-          border-radius: 12px;
-        }
-        .inst-nav-item:hover {
-          background: rgba(16,185,129,0.1);
-          border-left: 3px solid #10b981;
-        }
-        .inst-nav-active {
-          background: rgba(16,185,129,0.15);
-          border-left: 3px solid #10b981;
-          color: #6ee7b7;
-        }
-        .inst-card {
-          background: #0d1a14;
-          border: 1px solid rgba(16,185,129,0.12);
-          border-radius: 16px;
-          transition: all 0.3s ease;
-        }
-        .inst-card:hover {
-          border-color: rgba(16,185,129,0.3);
-          box-shadow: 0 0 30px rgba(16,185,129,0.08);
-        }
-        .inst-btn {
-          background: linear-gradient(135deg, #10b981, #059669);
-          color: white;
-          border-radius: 12px;
-          font-weight: 600;
-          transition: all 0.2s ease;
-          box-shadow: 0 4px 15px rgba(16,185,129,0.3);
-        }
-        .inst-btn:hover {
-          box-shadow: 0 6px 20px rgba(16,185,129,0.4);
-          transform: translateY(-1px);
-        }
-        .badge-approved { background: rgba(16,185,129,0.2); color: #6ee7b7; }
-        .badge-pending { background: rgba(245,158,11,0.2); color: #fcd34d; }
-        .badge-rejected { background: rgba(239,68,68,0.2); color: #fca5a5; }
-      `}</style>
-
-      {/* Sidebar */}
+      {/* ── Sidebar ── */}
       <motion.aside
-        initial={{ x: -280 }}
-        animate={{ x: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="inst-sidebar w-64 fixed h-full z-40 flex flex-col">
+        initial={{ x: -280 }} animate={{ x: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="w-60 fixed h-full z-40 flex flex-col"
+        style={{ background: sidebarBg, borderRight: `1px solid ${sidebarBorder}` }}>
 
         {/* Logo */}
-        <div className="p-6 border-b border-emerald-900/30">
+        <div className="px-5 py-5" style={{ borderBottom: `1px solid ${sidebarBorder}` }}>
           <Link to="/instructor/dashboard" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{
-                background: 'linear-gradient(135deg, #10b981, #059669)',
-                boxShadow: '0 0 20px rgba(16,185,129,0.4)',
-              }}>
-              <span className="text-white font-bold">EL</span>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg,#10b981,#059669)', boxShadow: '0 0 16px rgba(16,185,129,0.35)' }}>
+              <span className="text-white font-bold text-xs">EL</span>
             </div>
             <div>
-              <div className="text-white font-bold text-sm">E-Learn</div>
-              <div className="text-emerald-400 text-xs">Instructor</div>
+              <div className="font-bold text-sm" style={{ color: textPrimary }}>E-Learn</div>
+              <div className="text-[11px] font-medium" style={{ color: accentLight }}>Espace instructeur</div>
             </div>
           </Link>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
-          <p className="text-emerald-700 text-xs font-semibold uppercase tracking-wider mb-3 px-3">
+        {/* Nav */}
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+          <p className="text-[10px] font-bold uppercase tracking-widest mb-3 px-3"
+            style={{ color: dark ? 'rgba(16,185,129,0.4)' : '#9ca3af' }}>
             Navigation
           </p>
-          {navItems.map((item) => (
-            <Link key={item.to} to={item.to}
-              className={`inst-nav-item flex items-center gap-3 px-4 py-3 text-sm font-medium ${
-                isActive(item.to)
-                  ? 'inst-nav-active'
-                  : 'text-gray-400 hover:text-white'
-              }`}>
-              <span className="text-lg">{item.icon}</span>
-              <span>{item.label}</span>
-              {isActive(item.to) && (
-                <motion.div
-                  layoutId="instActiveIndicator"
-                  className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              )}
-            </Link>
-          ))}
+
+          {navItems.map((item) => {
+            const active = isActive(item.to);
+            return (
+              <Link key={item.to} to={item.to}
+                className="flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-xl transition-all relative"
+                style={active ? {
+                  background: navActive,
+                  borderLeft: `3px solid ${accent}`,
+                  color: accentLight,
+                  paddingLeft: '9px',
+                } : { color: textSub }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = navHover; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}>
+
+                <span style={{ color: active ? accentLight : textSub }}>{item.icon}</span>
+                <span className="flex-1">{item.label}</span>
+
+                {item.badge && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ background: 'rgba(16,185,129,0.15)', color: accentLight, border: '1px solid rgba(16,185,129,0.3)' }}>
+                    {item.badge}
+                  </span>
+                )}
+
+                {active && (
+                  <motion.div layoutId="instActive"
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ background: accent }} />
+                )}
+              </Link>
+            );
+          })}
         </nav>
 
         {/* User */}
-        <div className="p-4 border-t border-emerald-900/30">
-          <div className="flex items-center gap-3 mb-3 px-2">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
-              style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+        <div className="px-3 py-4" style={{ borderTop: `1px solid ${sidebarBorder}` }}>
+          <div className="flex items-center gap-3 px-3 mb-3">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg,#10b981,#059669)' }}>
               {user?.name?.charAt(0)}
             </div>
-            <div>
-              <div className="text-white text-sm font-medium">{user?.name}</div>
-              <div className="text-emerald-400 text-xs">Instructeur</div>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold truncate" style={{ color: textPrimary }}>{user?.name}</div>
+              <div className="text-[11px]" style={{ color: accentLight }}>Instructeur</div>
             </div>
           </div>
           <button onClick={() => { logout(); navigate('/login'); }}
-            className="w-full text-left px-4 py-2 text-red-400 hover:bg-red-900/20 rounded-xl text-sm transition">
+            className="w-full text-left px-3 py-2 rounded-xl text-sm transition flex items-center gap-2"
+            style={{ color: '#f87171' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            <i className="fa-solid fa-arrow-right-from-bracket text-[13px]" />
             Se déconnecter
           </button>
         </div>
       </motion.aside>
 
-      {/* Main */}
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
-
-        {/* Top bar */}
+      {/* ── Main ── */}
+      <div className="flex-1 ml-60 flex flex-col min-h-screen">
         <motion.header
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="sticky top-0 z-30 px-8 py-4 flex justify-between items-center"
-          style={{
-            background: 'rgba(10,17,15,0.8)',
-            backdropFilter: 'blur(20px)',
-            borderBottom: '1px solid rgba(16,185,129,0.1)',
-          }}>
+          initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}
+          className="sticky top-0 z-30 px-8 py-3.5 flex justify-between items-center"
+          style={{ background: headerBg, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: `1px solid ${headerBorder}` }}>
           <div>
-            <h1 className="text-white font-semibold">
-              {navItems.find(n => isActive(n.to))?.label || 'Dashboard'}
-            </h1>
-            <p className="text-emerald-400 text-xs mt-0.5">
-              {new Date().toLocaleDateString('fr-FR', {
-                weekday: 'long', day: 'numeric', month: 'long'
-              })}
+            <h1 className="font-semibold text-sm" style={{ color: textPrimary }}>{currentLabel}</h1>
+            <p className="text-xs mt-0.5" style={{ color: accentLight }}>
+              {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <ThemeToggle />
             <NotificationBell />
-            <div className="px-3 py-1.5 rounded-xl text-xs font-medium text-emerald-300"
-              style={{
-                background: 'rgba(16,185,129,0.15)',
-                border: '1px solid rgba(16,185,129,0.2)',
-              }}>
-              👨‍🏫 Instructor
+            <div className="px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5"
+              style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: accentLight }}>
+              <i className="fa-solid fa-chalkboard-user text-[12px]" />
+              Instructor
             </div>
           </div>
         </motion.header>
 
-        {/* Content */}
         <motion.main
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="flex-1 p-8 relative z-10">
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          transition={{ delay: 0.15 }}
+          className="flex-1 p-8">
           {children}
         </motion.main>
       </div>
